@@ -406,6 +406,41 @@
             isAttendanceLocked: false
         };
 
+        // Google Apps Script Web App URL - Replace with your deployed URL
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNZ5Cui2l9bashbvIZBkQbHN0mGCjaU56dADA9oZF7clH_DsKcSE0iXQTV6tjVoqnz/exec';
+
+        // Function to send data to Google Sheets
+        async function sendToGoogleSheets(data, type) {
+            try {
+                const payload = {
+                    ...data,
+                    type: type,
+                    timestamp: new Date().toISOString()
+                };
+
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('Data saved to Google Sheets successfully');
+                    return true;
+                } else {
+                    console.error('Error saving to Google Sheets:', result.error);
+                    return false;
+                }
+            } catch (error) {
+                console.error('Network error:', error);
+                return false;
+            }
+        }
+
         // Initialize date to today
         document.getElementById('attendanceDate').value = new Date().toISOString().split('T')[0];
 
@@ -483,7 +518,21 @@
             currentSession.date = document.getElementById('attendanceDate').value;
             currentSession.isAttendanceLocked = true;
             
-            document.getElementById('submitAttendanceBtn').textContent = 'Attendance Locked ✓';
+            // Save attendance data to Google Sheets
+            const attendanceData = {
+                supervisor: currentSession.supervisor,
+                date: currentSession.date,
+                manpower: currentSession.manpower
+            };
+
+            sendToGoogleSheets(attendanceData, 'attendance').then(success => {
+                if (success) {
+                    document.getElementById('submitAttendanceBtn').innerHTML = 'Attendance Locked ✓ <small>(Saved to Cloud)</small>';
+                } else {
+                    document.getElementById('submitAttendanceBtn').innerHTML = 'Attendance Locked ✓ <small>(Save Failed - Check Console)</small>';
+                }
+            });
+            
             document.getElementById('submitAttendanceBtn').disabled = true;
             document.getElementById('dprSection').classList.remove('hidden');
             
@@ -637,23 +686,32 @@
         }
 
         function submitFinalReport() {
-            // Simulate cloud save
-            const reportData = {
+            // Prepare DPR data for Google Sheets
+            const dprData = {
                 supervisor: currentSession.supervisor,
                 date: currentSession.date,
                 manpower: currentSession.manpower,
                 workEntries: currentSession.workEntries,
-                overtime: currentSession.overtime,
-                timestamp: new Date().toISOString()
+                overtime: currentSession.overtime
             };
 
-            // In a real app, this would send to Google Sheets
-            console.log('Saving to cloud:', reportData);
-            
-            document.getElementById('summarySection').classList.add('hidden');
-            document.getElementById('finalReportSection').classList.remove('hidden');
-            
-            generateFinalSummary();
+            // Save DPR data to Google Sheets
+            sendToGoogleSheets(dprData, 'dpr').then(success => {
+                if (success) {
+                    document.getElementById('summarySection').classList.add('hidden');
+                    document.getElementById('finalReportSection').classList.remove('hidden');
+                    generateFinalSummary();
+                    
+                    // Show success message
+                    const successDiv = document.querySelector('.alert-success');
+                    successDiv.innerHTML = 'Your daily report has been submitted and saved to Google Sheets! ✅';
+                } else {
+                    alert('Report submitted locally, but failed to save to Google Sheets. Please check your internet connection and try again.');
+                    document.getElementById('summarySection').classList.add('hidden');
+                    document.getElementById('finalReportSection').classList.remove('hidden');
+                    generateFinalSummary();
+                }
+            });
         }
 
         function generateFinalSummary() {
