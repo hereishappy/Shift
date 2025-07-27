@@ -84,7 +84,7 @@
                 </div>
                 <div class="flex justify-between items-center">
                     <button id="login-btn" class="btn-primary text-white px-4 py-2 rounded-md">Login</button>
-                    <button id="register-toggle" class="text-sm text-blue-600 hover:underline">New user? Register</button>
+                    <button id="register-toggle" class="text-sm text-blue-600 hover:underline">First time? Register</button>
                 </div>
             </div>
             <div id="login-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
@@ -98,10 +98,20 @@
                 <h1 class="text-3xl font-bold logo-text">DPR System</h1>
             </div>
             <div class="card bg-white rounded-lg p-6 mb-6">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800">Supervisor Registration</h2>
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">One-Time Registration</h2>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                    <input type="text" id="reg-name" class="input-field w-full p-2 rounded-md" placeholder="Enter your full name">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Select Your Name</label>
+                    <select id="reg-name" class="input-field w-full p-2 rounded-md">
+                        <option value="" disabled selected>Select your name</option>
+                        <option value="MAHENDRA KUMAR">MAHENDRA KUMAR</option>
+                        <option value="PINTU SAH">PINTU SAH</option>
+                        <option value="HARKIRAT SINGH">HARKIRAT SINGH</option>
+                        <option value="SUNIL CHAUHAN">SUNIL CHAUHAN</option>
+                        <option value="NSUP1">NSUP1</option>
+                        <option value="NSUP2">NSUP2</option>
+                        <option value="NSUP3">NSUP3</option>
+                        <option value="NSUP4">NSUP4</option>
+                    </select>
                 </div>
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
@@ -334,8 +344,13 @@
                 },
                 overtime: {},
                 attendanceSubmitted: false,
-                dprSubmitted: false
+                dprSubmitted: false,
+                // Google Apps Script Web App URL - Replace with your actual deployed script URL
+                googleScriptUrl: 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'
             };
+
+            // Load registered users from localStorage
+            loadUsers();
 
             // DOM Elements
             const elements = {
@@ -442,6 +457,26 @@
             elements.shareWhatsappBtn.addEventListener('click', shareViaWhatsapp);
 
             // Functions
+            function loadUsers() {
+                const savedUsers = localStorage.getItem('dprUsers');
+                if (savedUsers) {
+                    try {
+                        const parsedUsers = JSON.parse(savedUsers);
+                        // Merge default users with saved users, keeping saved users if there's a duplicate
+                        const userMap = new Map();
+                        state.users.forEach(user => userMap.set(user.name, user));
+                        parsedUsers.forEach(user => userMap.set(user.name, user));
+                        state.users = Array.from(userMap.values());
+                    } catch (e) {
+                        console.error('Error parsing saved users:', e);
+                    }
+                }
+            }
+
+            function saveUsers() {
+                localStorage.setItem('dprUsers', JSON.stringify(state.users));
+            }
+
             function handleLogin() {
                 const username = elements.username.value;
                 const password = elements.password.value;
@@ -472,10 +507,19 @@
             }
 
             function handleRegister() {
-                const name = elements.regName.value.trim();
+                const name = elements.regName.value;
                 const mobile = elements.regMobile.value.trim();
                 
                 if (name && mobile && mobile.length >= 2) {
+                    // Check if user already exists
+                    const existingUser = state.users.find(u => u.name === name);
+                    if (existingUser) {
+                        alert('This user is already registered. Please login instead.');
+                        elements.registerScreen.classList.add('hidden');
+                        elements.loginScreen.classList.remove('hidden');
+                        return;
+                    }
+                    
                     // Generate password (first 4 letters of name + last 2 digits of mobile)
                     const namePrefix = name.substring(0, 4).toUpperCase();
                     const mobilePostfix = mobile.slice(-2);
@@ -483,6 +527,7 @@
                     
                     // Add new user
                     state.users.push({ name, password });
+                    saveUsers();
                     
                     // Show success message
                     elements.generatedPassword.textContent = password;
@@ -784,19 +829,13 @@
             }
 
             function submitDpr() {
-                // Simulate saving to Google Sheets
-                state.dprSubmitted = true;
-                elements.successMessage.classList.remove('hidden');
-                
-                // Disable submit button
+                // Disable submit button to prevent multiple submissions
                 elements.submitDprBtn.disabled = true;
                 elements.submitDprBtn.classList.add('opacity-50');
+                elements.submitDprBtn.textContent = 'Submitting...';
                 
-                // Scroll to success message
-                elements.successMessage.scrollIntoView({ behavior: 'smooth' });
-                
-                // In a real app, this would send data to Google Sheets
-                console.log('Data to be saved:', {
+                // Prepare data for Google Sheets
+                const reportData = {
                     supervisor: state.currentUser,
                     date: state.attendance.date,
                     manpower: state.attendance.manpower,
@@ -805,7 +844,36 @@
                     totalErection: state.dpr.totalErection,
                     totalDismantling: state.dpr.totalDismantling,
                     totalManhours: parseFloat(elements.totalManhours.textContent),
-                    productivity: parseFloat(elements.productivity.textContent)
+                    productivity: parseFloat(elements.productivity.textContent),
+                    feedback: parseFloat(elements.productivity.textContent) < 2.5 ? 'Need Improvement' : 'Excellent'
+                };
+                
+                // Send data to Google Sheets via Apps Script
+                fetch(state.googleScriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // This is important for Google Apps Script
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(reportData)
+                })
+                .then(() => {
+                    // Show success message
+                    state.dprSubmitted = true;
+                    elements.successMessage.classList.remove('hidden');
+                    elements.submitDprBtn.textContent = 'Submitted';
+                    
+                    // Scroll to success message
+                    elements.successMessage.scrollIntoView({ behavior: 'smooth' });
+                })
+                .catch(error => {
+                    console.error('Error submitting report:', error);
+                    alert('There was an error submitting your report. Please try again.');
+                    
+                    // Re-enable submit button
+                    elements.submitDprBtn.disabled = false;
+                    elements.submitDprBtn.classList.remove('opacity-50');
+                    elements.submitDprBtn.textContent = 'Submit Final Report';
                 });
             }
 
@@ -838,5 +906,5 @@
             }
         });
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9659779ba686d689',t:'MTc1MzU5MTMxNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'96598dc5973a2e4d',t:'MTc1MzU5MjIyMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
