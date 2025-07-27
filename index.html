@@ -407,7 +407,34 @@
         };
 
         // Google Apps Script Web App URL - Replace with your deployed URL
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNZ5Cui2l9bashbvIZBkQbHN0mGCjaU56dADA9oZF7clH_DsKcSE0iXQTV6tjVoqnz/exec';
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+
+        // Function to save session data to memory storage
+        function saveSessionData() {
+            const sessionKey = `attendance_session_${currentSession.supervisor}_${currentSession.date}`;
+            const sessionData = JSON.stringify(currentSession);
+            
+            // Store in a global variable (simulating persistent storage)
+            if (!window.attendanceSessions) {
+                window.attendanceSessions = {};
+            }
+            window.attendanceSessions[sessionKey] = sessionData;
+        }
+
+        // Function to load session data from memory storage
+        function loadSessionData(supervisor, date) {
+            if (!window.attendanceSessions) {
+                return null;
+            }
+            
+            const sessionKey = `attendance_session_${supervisor}_${date}`;
+            const sessionData = window.attendanceSessions[sessionKey];
+            
+            if (sessionData) {
+                return JSON.parse(sessionData);
+            }
+            return null;
+        }
 
         // Function to send data to Google Sheets
         async function sendToGoogleSheets(data, type) {
@@ -463,12 +490,52 @@
 
             if (password === expectedPassword) {
                 currentSession.supervisor = supervisor;
-                document.getElementById('loggedSupervisor').textContent = supervisor;
-                document.getElementById('loginSection').classList.add('hidden');
-                document.getElementById('dashboard').classList.remove('hidden');
+                const todayDate = new Date().toISOString().split('T')[0];
+                
+                // Check if there's existing attendance data for today
+                const existingSession = loadSessionData(supervisor, todayDate);
+                
+                if (existingSession && existingSession.isAttendanceLocked) {
+                    // Restore the existing session
+                    currentSession = existingSession;
+                    document.getElementById('loggedSupervisor').textContent = supervisor;
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                    
+                    // Show locked attendance and go directly to DPR
+                    showLockedAttendance();
+                    document.getElementById('dprSection').classList.remove('hidden');
+                    
+                    // Update displays
+                    updateManpowerDisplay();
+                    updateWorkDisplay();
+                } else {
+                    // Fresh login - start new attendance
+                    currentSession.date = todayDate;
+                    document.getElementById('attendanceDate').value = todayDate;
+                    document.getElementById('loggedSupervisor').textContent = supervisor;
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('dashboard').classList.remove('hidden');
+                }
             } else {
                 alert('Invalid password. Please check and try again.');
             }
+        }
+
+        function showLockedAttendance() {
+            // Update attendance display to show it's locked
+            document.getElementById('attendanceDate').value = currentSession.date;
+            document.getElementById('attendanceDate').disabled = true;
+            document.getElementById('manpowerName').disabled = true;
+            document.getElementById('submitAttendanceBtn').innerHTML = 'Attendance Locked ✅ <small>(Continue to End Shift)</small>';
+            document.getElementById('submitAttendanceBtn').disabled = true;
+            document.getElementById('submitAttendanceBtn').classList.add('btn-success');
+            
+            // Show alert about continuing with existing attendance
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-info';
+            alertDiv.innerHTML = '<strong>📋 Existing Attendance Found!</strong><br>You have already submitted attendance for today. Continue with End of Shift reporting.';
+            document.getElementById('attendanceSection').insertBefore(alertDiv, document.getElementById('attendanceSection').firstChild.nextSibling);
         }
 
         function addManpower() {
@@ -518,6 +585,9 @@
             currentSession.date = document.getElementById('attendanceDate').value;
             currentSession.isAttendanceLocked = true;
             
+            // Save session data to memory
+            saveSessionData();
+            
             // Save attendance data to Google Sheets
             const attendanceData = {
                 supervisor: currentSession.supervisor,
@@ -534,12 +604,18 @@
             });
             
             document.getElementById('submitAttendanceBtn').disabled = true;
+            document.getElementById('submitAttendanceBtn').classList.add('btn-success');
+            document.getElementById('attendanceDate').disabled = true;
+            document.getElementById('manpowerName').disabled = true;
             document.getElementById('dprSection').classList.remove('hidden');
             
             // Initialize overtime tracking
             currentSession.manpower.forEach(name => {
                 currentSession.overtime[name] = 0;
             });
+            
+            // Save updated session data
+            saveSessionData();
         }
 
         function addWorkEntry() {
@@ -569,6 +645,9 @@
             };
 
             currentSession.workEntries.push(workEntry);
+            
+            // Save session data
+            saveSessionData();
             
             // Clear form
             document.getElementById('activityType').value = '';
@@ -661,6 +740,8 @@
 
         function updateOvertime(name, value) {
             currentSession.overtime[name] = parseFloat(value) || 0;
+            // Save session data whenever overtime is updated
+            saveSessionData();
             calculateProductivity();
         }
 
@@ -698,6 +779,12 @@
             // Save DPR data to Google Sheets
             sendToGoogleSheets(dprData, 'dpr').then(success => {
                 if (success) {
+                    // Clear the session data after successful submission
+                    const sessionKey = `attendance_session_${currentSession.supervisor}_${currentSession.date}`;
+                    if (window.attendanceSessions && window.attendanceSessions[sessionKey]) {
+                        delete window.attendanceSessions[sessionKey];
+                    }
+                    
                     document.getElementById('summarySection').classList.add('hidden');
                     document.getElementById('finalReportSection').classList.remove('hidden');
                     generateFinalSummary();
@@ -715,17 +802,20 @@
         }
 
         function generateFinalSummary() {
-            // Calculate total manhours: each worker gets 8 hours + their individual overtime
-            let totalManhours = 0;
-            let manhourDetails = '';
-            currentSession.manpower.forEach(name => {
-                const workerHours = 8 + (currentSession.overtime[name] || 0);
-                totalManhours += workerHours;
-                manhourDetails += `• ${name}: 8h + ${currentSession.overtime[name] || 0}h OT = ${workerHours}h\n`;
-            });
+            // Calculate total manhours: (Number of workers × 8) + Total overtime hours
+            const regularHours = currentSession.manpower.length * 8;
+            const totalOvertimeHours = Object.values(currentSession.overtime).reduce((sum, val) => sum + val, 0);
+            const totalManhours = regularHours + totalOvertimeHours;
             
             const totalVolume = currentSession.workEntries.reduce((sum, entry) => sum + parseFloat(entry.volume), 0);
             const productivity = totalManhours > 0 ? totalVolume / totalManhours : 0;
+
+            // Build overtime details
+            let overtimeDetails = '';
+            currentSession.manpower.forEach(name => {
+                const overtimeHours = currentSession.overtime[name] || 0;
+                overtimeDetails += `• ${name}: ${overtimeHours} hours\n`;
+            });
 
             const summary = `
                 📊 DAILY PROGRESS REPORT
@@ -739,8 +829,11 @@
                 🔧 WORK COMPLETED:
                 ${currentSession.workEntries.map(entry => `• ${entry.activityType}: ${entry.volume} m³`).join('\n')}
                 
-                ⏰ MANHOURS BREAKDOWN:
-                ${manhourDetails}Total Manhours: ${totalManhours}h
+                ⏰ MANHOURS CALCULATION:
+                Regular Hours: ${currentSession.manpower.length} × 8 = ${regularHours} hours
+                Overtime Hours:
+                ${overtimeDetails}Total Overtime: ${totalOvertimeHours} hours
+                Total Manhours: ${regularHours} + ${totalOvertimeHours} = ${totalManhours} hours
                 
                 📈 PRODUCTIVITY: ${productivity.toFixed(2)} m³/hr
                 Status: ${productivity >= 2.5 ? 'EXCELLENT ✅' : 'NEEDS IMPROVEMENT ⚠️'}
@@ -750,25 +843,22 @@
         }
 
         function shareWhatsApp() {
-            // Calculate total manhours: each worker gets 8 hours + their individual overtime
-            let totalManhours = 0;
-            let manhourDetails = '';
-            currentSession.manpower.forEach(name => {
-                const workerHours = 8 + (currentSession.overtime[name] || 0);
-                totalManhours += workerHours;
-                manhourDetails += `• ${name}: 8h + ${currentSession.overtime[name] || 0}h OT = ${workerHours}h\n`;
-            });
+            // Calculate total manhours: (Number of workers × 8) + Total overtime hours
+            const regularHours = currentSession.manpower.length * 8;
+            const totalOvertimeHours = Object.values(currentSession.overtime).reduce((sum, val) => sum + val, 0);
+            const totalManhours = regularHours + totalOvertimeHours;
             
             const totalVolume = currentSession.workEntries.reduce((sum, entry) => sum + parseFloat(entry.volume), 0);
             const productivity = totalManhours > 0 ? totalVolume / totalManhours : 0;
 
-            const message = `📊 DAILY PROGRESS REPORT\n\nSupervisor: ${currentSession.supervisor}\nDate: ${currentSession.date}\n\n👥 MANPOWER: ${currentSession.manpower.length} workers\n${currentSession.manpower.map(name => `• ${name}`).join('\n')}\n\n🔧 TOTAL VOLUME: ${totalVolume.toFixed(2)} m³\n⏰ TOTAL MANHOURS: ${totalManhours}h\n📈 PRODUCTIVITY: ${productivity.toFixed(2)} m³/hr\n\nStatus: ${productivity >= 2.5 ? 'EXCELLENT ✅' : 'NEEDS IMPROVEMENT ⚠️'}`;
+            const message = `📊 DAILY PROGRESS REPORT\n\nSupervisor: ${currentSession.supervisor}\nDate: ${currentSession.date}\n\n👥 MANPOWER: ${currentSession.manpower.length} workers\n${currentSession.manpower.map(name => `• ${name}`).join('\n')}\n\n🔧 TOTAL VOLUME: ${totalVolume.toFixed(2)} m³\n⏰ TOTAL MANHOURS: ${totalManhours}h (${regularHours}h regular + ${totalOvertimeHours}h overtime)\n📈 PRODUCTIVITY: ${productivity.toFixed(2)} m³/hr\n\nStatus: ${productivity >= 2.5 ? 'EXCELLENT ✅' : 'NEEDS IMPROVEMENT ⚠️'}`;
 
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
             window.open(whatsappUrl, '_blank');
         }
 
         function resetSystem() {
+            // Clear current session
             currentSession = {
                 supervisor: '',
                 date: '',
@@ -788,8 +878,19 @@
             document.getElementById('supervisorName').value = '';
             document.getElementById('password').value = '';
             document.getElementById('attendanceDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('attendanceDate').disabled = false;
+            document.getElementById('manpowerName').disabled = false;
             document.getElementById('submitAttendanceBtn').textContent = 'Submit Attendance';
             document.getElementById('submitAttendanceBtn').disabled = false;
+            document.getElementById('submitAttendanceBtn').classList.remove('btn-success');
+            
+            // Remove any alert messages
+            const alerts = document.querySelectorAll('.alert-info');
+            alerts.forEach(alert => {
+                if (alert.innerHTML.includes('Existing Attendance Found')) {
+                    alert.remove();
+                }
+            });
             
             updateManpowerDisplay();
             updateWorkDisplay();
