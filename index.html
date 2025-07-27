@@ -1,1606 +1,842 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Worker Attendance Tracker</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-body {
-font-family: 'Inter', sans-serif;
-background-color: #f0f4f8;
-}
-.attendance-table {
-overflow-x: auto;
-}
-.attendance-table table {
-min-width: 100%;
-}
-.demo-notice {
-position: fixed;
-bottom: 0;
-left: 0;
-right: 0;
-background-color: rgba(59, 130, 246, 0.9);
-color: white;
-text-align: center;
-padding: 8px;
-font-size: 14px;
-z-index: 50;
-}
-select {
-appearance: none;
-background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-background-repeat: no-repeat;
-background-position: right 0.5rem center;
-background-size: 1em;
-}
-.loading {
-position: fixed;
-top: 0;
-left: 0;
-right: 0;
-bottom: 0;
-background-color: rgba(0, 0, 0, 0.5);
-display: flex;
-justify-content: center;
-align-items: center;
-z-index: 100;
-color: white;
-}
-.spinner {
-border: 4px solid rgba(255, 255, 255, 0.3);
-border-radius: 50%;
-border-top: 4px solid white;
-width: 40px;
-height: 40px;
-animation: spin 1s linear infinite;
-}
-@keyframes spin {
-0% { transform: rotate(0deg); }
-100% { transform: rotate(360deg); }
-}
-.measurement-card {
-background-color: #f8fafc;
-border: 1px solid #e2e8f0;
-border-radius: 0.5rem;
-padding: 1rem;
-margin-bottom: 1rem;
-}
-.modal {
-position: fixed;
-top: 0;
-left: 0;
-right: 0;
-bottom: 0;
-background-color: rgba(0, 0, 0, 0.5);
-display: flex;
-justify-content: center;
-align-items: center;
-z-index: 100;
-}
-.modal-content {
-background-color: white;
-border-radius: 0.5rem;
-width: 90%;
-max-width: 600px;
-max-height: 90vh;
-overflow-y: auto;
-box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-}
-.pin-input {
-width: 3rem;
-height: 3rem;
-font-size: 1.5rem;
-text-align: center;
-border: 2px solid #e2e8f0;
-border-radius: 0.5rem;
-margin: 0 0.25rem;
-}
-.pin-input:focus {
-border-color: #3b82f6;
-outline: none;
-}
-.pin-pad-button {
-width: 4rem;
-height: 4rem;
-font-size: 1.5rem;
-border-radius: 0.5rem;
-margin: 0.25rem;
-background-color: #f8fafc;
-border: 1px solid #e2e8f0;
-}
-@media print {
-body * {
-visibility: hidden;
-}
-#summaryReport, #summaryReport * {
-visibility: visible;
-}
-#summaryReport {
-position: absolute;
-left: 0;
-top: 0;
-width: 100%;
-}
-.no-print {
-display: none !important;
-}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supervisor DPR System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #1e40af;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #1e3a8a;
+        }
+        .btn-secondary {
+            background-color: #64748b;
+            transition: all 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #475569;
+        }
+        .input-field {
+            transition: all 0.3s ease;
+            border: 1px solid #cbd5e1;
+        }
+        .input-field:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        .logo-text {
+            background: linear-gradient(45deg, #1e40af, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
 </head>
-<body>
-<div id="loading" class="loading hidden">
-<div>
-<div class="spinner mb-2 mx-auto"></div>
-<div>Loading data...</div>
-</div>
-</div>
-
-<!-- Login Modal -->
-<div id="loginModal" class="modal">
-<div class="modal-content p-6 max-w-md">
-<h2 class="text-xl font-bold mb-4 text-center">Supervisor Login</h2>
-
-<div class="mb-4">
-<label for="loginSupervisor" class="block text-sm font-medium text-gray-700 mb-1">Select Supervisor:</label>
-<select id="loginSupervisor" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-<option value="" disabled selected>Select Supervisor</option>
-<option value="MAHENDRA KUMAR">MAHENDRA KUMAR</option>
-<option value="PINTU SAH">PINTU SAH</option>
-<option value="HARKIRAT SINGH">HARKIRAT SINGH</option>
-<option value="SUNIL CHAUHAN">SUNIL CHAUHAN</option>
-<option value="NSUP1">NSUP1</option>
-<option value="NSUP2">NSUP2</option>
-<option value="NSUP3">NSUP3</option>
-<option value="NSUP4">NSUP4</option>
-</select>
-</div>
-
-<div class="mb-6">
-<label class="block text-sm font-medium text-gray-700 mb-2">Enter PIN:</label>
-<div class="flex justify-center mb-4">
-<input type="password" maxlength="1" class="pin-input" data-index="0">
-<input type="password" maxlength="1" class="pin-input" data-index="1">
-<input type="password" maxlength="1" class="pin-input" data-index="2">
-<input type="password" maxlength="1" class="pin-input" data-index="3">
-</div>
-
-<div class="grid grid-cols-3 gap-2 justify-center">
-<button class="pin-pad-button" data-value="1">1</button>
-<button class="pin-pad-button" data-value="2">2</button>
-<button class="pin-pad-button" data-value="3">3</button>
-<button class="pin-pad-button" data-value="4">4</button>
-<button class="pin-pad-button" data-value="5">5</button>
-<button class="pin-pad-button" data-value="6">6</button>
-<button class="pin-pad-button" data-value="7">7</button>
-<button class="pin-pad-button" data-value="8">8</button>
-<button class="pin-pad-button" data-value="9">9</button>
-<button class="pin-pad-button" data-value="clear">Clear</button>
-<button class="pin-pad-button" data-value="0">0</button>
-<button class="pin-pad-button bg-blue-600 text-white" data-value="enter">Enter</button>
-</div>
-</div>
-
-<div id="pinError" class="text-red-500 text-center mb-4 hidden">
-Incorrect PIN. Please try again.
-</div>
-
-<div class="bg-blue-50 p-4 rounded-md mb-4">
-<h3 class="font-medium text-center mb-2">Supervisor PINs</h3>
-<div class="grid grid-cols-2 gap-2 text-sm">
-<div>MAHENDRA KUMAR: <strong>1234</strong></div>
-<div>PINTU SAH: <strong>2345</strong></div>
-<div>HARKIRAT SINGH: <strong>3456</strong></div>
-<div>SUNIL CHAUHAN: <strong>4567</strong></div>
-<div>NSUP1: <strong>5678</strong></div>
-<div>NSUP2: <strong>6789</strong></div>
-<div>NSUP3: <strong>7890</strong></div>
-<div>NSUP4: <strong>8901</strong></div>
-</div>
-</div>
-</div>
-</div>
-
-<div class="min-h-screen flex flex-col">
-<header class="bg-blue-600 text-white p-4 shadow-md">
-<div class="flex justify-between items-center">
-<h1 class="text-xl font-bold">Worker Attendance Tracker</h1>
-<div class="flex items-center">
-<span id="headerSupervisorName" class="mr-3 font-medium"></span>
-<button id="logoutButton" class="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium">Logout</button>
-</div>
-</div>
-<div class="flex justify-between items-center mt-2">
-<div id="currentDate" class="text-sm font-medium"></div>
-<button id="toggleView" class="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium">View Summary</button>
-</div>
-</header>
-
-<main class="flex-grow p-4">
-<!-- Daily Entry View -->
-<div id="dailyEntryView" class="bg-white rounded-lg shadow-md p-4 mb-4">
-<div class="flex justify-between items-center mb-4">
-<h2 class="text-lg font-semibold">Today's Attendance</h2>
-<div class="flex space-x-2">
-<button id="startShiftMode" class="bg-green-500 text-white px-3 py-1 rounded-md text-sm">Start Shift</button>
-<button id="endShiftMode" class="bg-gray-200 text-gray-700 px-3 py-1 rounded-md text-sm opacity-50 cursor-not-allowed" disabled>End Shift</button>
-</div>
-</div>
-
-<div id="startShiftEntry" class="mb-4">
-<div class="flex mb-2">
-<input type="text" id="workerName" placeholder="Enter worker name" class="flex-grow border border-gray-300 rounded-l-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-<button id="addWorker" class="bg-blue-600 text-white px-4 py-2 rounded-r-md">Add</button>
-</div>
-<div id="workerList" class="mt-4 border rounded-md divide-y">
-<!-- Worker list will be populated here -->
-</div>
-<button id="submitStartShift" class="mt-4 w-full bg-blue-600 text-white py-2 rounded-md font-medium">Submit Start Shift</button>
-</div>
-
-<div id="endShiftEntry" class="hidden">
-<h3 class="font-medium text-lg mb-3">Overtime Hours</h3>
-<div id="overtimeList" class="border rounded-md divide-y mb-6">
-<!-- Overtime entry fields will be populated here -->
-</div>
-
-<h3 class="font-medium text-lg mb-3">Measurement Entries</h3>
-<div id="measurementEntries" class="mb-4">
-<!-- Measurement entries will be added here -->
-</div>
-
-<button id="addMeasurement" class="mb-4 w-full bg-gray-100 text-gray-800 border border-gray-300 py-2 rounded-md font-medium flex items-center justify-center">
-<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-<path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-</svg>
-Add Measurement
-</button>
-
-<div class="bg-blue-50 p-4 rounded-md mb-4">
-<h3 class="font-medium text-lg mb-2">Today's Productivity</h3>
-<div class="grid grid-cols-2 gap-4">
-<div>
-<p class="text-sm text-gray-600">Total Volume (m³):</p>
-<p id="totalVolume" class="font-bold text-lg">0.00</p>
-</div>
-<div>
-<p class="text-sm text-gray-600">Total Manhours:</p>
-<p id="totalManhours" class="font-bold text-lg">0</p>
-</div>
-<div>
-<p class="text-sm text-gray-600">Erection Volume (m³):</p>
-<p id="erectionVolume" class="font-bold text-lg">0.00</p>
-</div>
-<div>
-<p class="text-sm text-gray-600">Dismantling Volume (m³):</p>
-<p id="dismantlingVolume" class="font-bold text-lg">0.00</p>
-</div>
-<div class="col-span-2">
-<p class="text-sm text-gray-600">Productivity (m³/manhour):</p>
-<p id="productivity" class="font-bold text-xl text-blue-600">0.00</p>
-</div>
-</div>
-</div>
-
-<button id="saveDay" class="w-full bg-blue-600 text-white py-2 rounded-md font-medium">Save End Shift Data</button>
-</div>
-</div>
-
-<!-- Summary View -->
-<div id="summaryView" class="hidden bg-white rounded-lg shadow-md p-4">
-<h2 class="text-lg font-semibold mb-4">Monthly Summary</h2>
-<div class="mb-4">
-<label for="summaryFilterSupervisor" class="block text-sm font-medium text-gray-700 mb-1">Filter by Supervisor:</label>
-<select id="summaryFilterSupervisor" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-<option value="all">All Supervisors</option>
-<option value="MAHENDRA KUMAR">MAHENDRA KUMAR</option>
-<option value="PINTU SAH">PINTU SAH</option>
-<option value="HARKIRAT SINGH">HARKIRAT SINGH</option>
-<option value="SUNIL CHAUHAN">SUNIL CHAUHAN</option>
-<option value="NSUP1">NSUP1</option>
-<option value="NSUP2">NSUP2</option>
-<option value="NSUP3">NSUP3</option>
-<option value="NSUP4">NSUP4</option>
-</select>
-</div>
-
-<div class="mb-6">
-<h3 class="font-medium text-md mb-2">Manpower Hours</h3>
-<div class="attendance-table">
-<table class="w-full border-collapse">
-<thead>
-<tr class="bg-gray-100">
-<th class="border px-4 py-2 text-left">NAME</th>
-<th class="border px-4 py-2 text-left">SUPERVISOR</th>
-<th class="border px-4 py-2 text-center" id="date1"></th>
-<th class="border px-4 py-2 text-center" id="date2"></th>
-<th class="border px-4 py-2 text-center" id="date3"></th>
-</tr>
-</thead>
-<tbody id="summaryTableBody">
-<!-- Summary data will be populated here -->
-</tbody>
-</table>
-</div>
-</div>
-
-<div class="mb-6">
-<h3 class="font-medium text-md mb-2">Measurements</h3>
-<div class="attendance-table">
-<table class="w-full border-collapse">
-<thead>
-<tr class="bg-gray-100">
-<th class="border px-4 py-2 text-left">DATE</th>
-<th class="border px-4 py-2 text-left">SUPERVISOR</th>
-<th class="border px-4 py-2 text-left">WORK TYPE</th>
-<th class="border px-4 py-2 text-center">DIMENSIONS</th>
-<th class="border px-4 py-2 text-center">QUANTITY</th>
-<th class="border px-4 py-2 text-center">CUBIC METERS</th>
-</tr>
-</thead>
-<tbody id="measurementTableBody">
-<!-- Measurement data will be populated here -->
-</tbody>
-</table>
-</div>
-</div>
-
-<div>
-<h3 class="font-medium text-md mb-2">Daily Productivity</h3>
-<div class="attendance-table">
-<table class="w-full border-collapse">
-<thead>
-<tr class="bg-gray-100">
-<th class="border px-4 py-2 text-left">DATE</th>
-<th class="border px-4 py-2 text-left">SUPERVISOR</th>
-<th class="border px-4 py-2 text-center">TOTAL VOLUME (m³)</th>
-<th class="border px-4 py-2 text-center">ERECTION (m³)</th>
-<th class="border px-4 py-2 text-center">DISMANTLING (m³)</th>
-<th class="border px-4 py-2 text-center">MANHOURS</th>
-<th class="border px-4 py-2 text-center">PRODUCTIVITY</th>
-<th class="border px-4 py-2 text-center">ACTIONS</th>
-</tr>
-</thead>
-<tbody id="productivityTableBody">
-<!-- Productivity data will be populated here -->
-</tbody>
-</table>
-</div>
-</div>
-</div>
-</main>
-</div>
-
-<!-- Summary Report Modal -->
-<div id="summaryReportModal" class="modal hidden">
-<div class="modal-content">
-<div id="summaryReport" class="p-6">
-<div class="flex justify-between items-center mb-6">
-<h2 class="text-xl font-bold">Daily Productivity Report</h2>
-<div class="no-print">
-<button id="closeReportModal" class="text-gray-500 hover:text-gray-700">
-<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-</svg>
-</button>
-</div>
-</div>
-
-<div class="mb-6">
-<div class="grid grid-cols-2 gap-4 mb-4">
-<div>
-<p class="text-sm text-gray-600">Date:</p>
-<p id="reportDate" class="font-medium"></p>
-</div>
-<div>
-<p class="text-sm text-gray-600">Supervisor:</p>
-<p id="reportSupervisor" class="font-medium"></p>
-</div>
-</div>
-
-<div class="bg-gray-50 p-4 rounded-md mb-4">
-<h3 class="font-medium mb-3">Productivity Summary</h3>
-<div class="grid grid-cols-2 gap-4">
-<div>
-<p class="text-sm text-gray-600">Total Volume (m³):</p>
-<p id="reportTotalVolume" class="font-bold text-lg"></p>
-</div>
-<div>
-<p class="text-sm text-gray-600">Total Manhours:</p>
-<p id="reportTotalManhours" class="font-bold text-lg"></p>
-</div>
-<div>
-<p class="text-sm text-gray-600">Erection Volume (m³):</p>
-<p id="reportErectionVolume" class="font-bold text-lg"></p>
-</div>
-<div>
-<p class="text-sm text-gray-600">Dismantling Volume (m³):</p>
-<p id="reportDismantlingVolume" class="font-bold text-lg"></p>
-</div>
-<div class="col-span-2">
-<p class="text-sm text-gray-600">Productivity (m³/manhour):</p>
-<p id="reportProductivity" class="font-bold text-xl text-blue-600"></p>
-</div>
-</div>
-</div>
-</div>
-
-<div class="mb-6">
-<h3 class="font-medium mb-2">Manpower Details</h3>
-<table class="w-full border-collapse">
-<thead>
-<tr class="bg-gray-100">
-<th class="border px-3 py-2 text-left">Worker Name</th>
-<th class="border px-3 py-2 text-center">Hours</th>
-</tr>
-</thead>
-<tbody id="reportManpowerTable">
-<!-- Worker hours will be populated here -->
-</tbody>
-</table>
-</div>
-
-<div class="mb-6">
-<h3 class="font-medium mb-2">Measurement Details</h3>
-<table class="w-full border-collapse">
-<thead>
-<tr class="bg-gray-100">
-<th class="border px-3 py-2 text-left">Work Type</th>
-<th class="border px-3 py-2 text-center">Dimensions</th>
-<th class="border px-3 py-2 text-center">Quantity</th>
-<th class="border px-3 py-2 text-center">Volume (m³)</th>
-</tr>
-</thead>
-<tbody id="reportMeasurementTable">
-<!-- Measurement details will be populated here -->
-</tbody>
-</table>
-</div>
-
-<div class="no-print flex justify-end space-x-3">
-<button id="printReport" class="bg-blue-600 text-white px-4 py-2 rounded-md">Print Report</button>
-<button id="shareReport" class="bg-green-600 text-white px-4 py-2 rounded-md">Share Report</button>
-</div>
-</div>
-</div>
-</div>
-
-<div class="demo-notice">
-DEMO: This interface connects to Google Sheets. Follow the setup instructions to enable cloud storage.
-</div>
-
-<script>
-// Initialize data storage
-let workers = {};
-let attendanceData = {};
-let measurementData = [];
-let productivityData = [];
-let currentSupervisor = '';
-let shiftStarted = false;
-let measurementCounter = 0;
-let isLoggedIn = false;
-
-// Supervisor PINs
-const supervisorPINs = {
-'MAHENDRA KUMAR': '1234',
-'PINTU SAH': '2345',
-'HARKIRAT SINGH': '3456',
-'SUNIL CHAUHAN': '4567',
-'NSUP1': '5678',
-'NSUP2': '6789',
-'NSUP3': '7890',
-'NSUP4': '8901'
-};
-
-// Google Sheet API URL - Replace with your actual deployed Google Apps Script Web App URL
-const GOOGLE_SHEET_API = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
-
-// Format dates for display
-const today = new Date();
-const formatDate = (date) => {
-const day = date.getDate().toString().padStart(2, '0');
-const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const month = monthNames[date.getMonth()];
-return `${day}${month}`;
-};
-
-// Format date for Google Sheets (YYYY-MM-DD)
-const formatDateForSheet = (date) => {
-return date.toISOString().split('T')[0];
-};
-
-// Format date for display (DD MMM YYYY)
-const formatDateFull = (date) => {
-return date.toLocaleDateString('en-US', {
-day: 'numeric',
-month: 'short',
-year: 'numeric'
-});
-};
-
-// Set up the current date display
-document.getElementById('currentDate').textContent = formatDateFull(today);
-
-// Set up the column headers for the summary table
-const date1 = new Date(today);
-const date2 = new Date(today);
-date2.setDate(date2.getDate() - 1);
-const date3 = new Date(today);
-date3.setDate(date3.getDate() - 2);
-
-document.getElementById('date1').textContent = formatDate(date1);
-document.getElementById('date2').textContent = formatDate(date2);
-document.getElementById('date3').textContent = formatDate(date3);
-
-// Show/hide loading indicator
-function showLoading() {
-document.getElementById('loading').classList.remove('hidden');
-}
-
-function hideLoading() {
-document.getElementById('loading').classList.add('hidden');
-}
-
-// PIN input handling
-const pinInputs = document.querySelectorAll('.pin-input');
-pinInputs.forEach((input, index) => {
-input.addEventListener('input', function() {
-if (this.value.length === 1) {
-if (index < pinInputs.length - 1) {
-pinInputs[index + 1].focus();
-}
-}
-});
-
-input.addEventListener('keydown', function(e) {
-if (e.key === 'Backspace' && this.value.length === 0) {
-if (index > 0) {
-pinInputs[index - 1].focus();
-}
-}
-});
-});
-
-// PIN pad buttons
-document.querySelectorAll('.pin-pad-button').forEach(button => {
-button.addEventListener('click', function() {
-const value = this.getAttribute('data-value');
-
-if (value === 'clear') {
-pinInputs.forEach(input => {
-input.value = '';
-});
-pinInputs[0].focus();
-} else if (value === 'enter') {
-verifyPIN();
-} else {
-// Find the first empty input
-for (let i = 0; i < pinInputs.length; i++) {
-if (pinInputs[i].value === '') {
-pinInputs[i].value = value;
-if (i < pinInputs.length - 1) {
-pinInputs[i + 1].focus();
-}
-break;
-}
-}
-}
-});
-});
-
-// Verify PIN
-function verifyPIN() {
-const supervisor = document.getElementById('loginSupervisor').value;
-if (!supervisor) {
-alert('Please select a supervisor.');
-return;
-}
-
-let enteredPIN = '';
-pinInputs.forEach(input => {
-enteredPIN += input.value;
-});
-
-if (enteredPIN === supervisorPINs[supervisor]) {
-// PIN is correct
-document.getElementById('pinError').classList.add('hidden');
-login(supervisor);
-} else {
-// PIN is incorrect
-document.getElementById('pinError').classList.remove('hidden');
-pinInputs.forEach(input => {
-input.value = '';
-});
-pinInputs[0].focus();
-}
-}
-
-// Login function
-function login(supervisor) {
-currentSupervisor = supervisor;
-isLoggedIn = true;
-
-// Hide login modal
-document.getElementById('loginModal').classList.add('hidden');
-
-// Update header
-document.getElementById('headerSupervisorName').textContent = supervisor;
-
-// Save to localStorage
-localStorage.setItem('currentSupervisor', supervisor);
-
-// Load data
-fetchDataFromSheet();
-}
-
-// Logout function
-function logout() {
-currentSupervisor = '';
-isLoggedIn = false;
-
-// Show login modal
-document.getElementById('loginModal').classList.remove('hidden');
-
-// Clear PIN inputs
-pinInputs.forEach(input => {
-input.value = '';
-});
-document.getElementById('pinError').classList.add('hidden');
-
-// Reset supervisor selection
-document.getElementById('loginSupervisor').value = '';
-
-// Clear header
-document.getElementById('headerSupervisorName').textContent = '';
-
-// Remove from localStorage
-localStorage.removeItem('currentSupervisor');
-}
-
-// Fetch data from Google Sheets
-async function fetchDataFromSheet() {
-showLoading();
-try {
-// In a real implementation, this would fetch data from Google Sheets
-// For demo purposes, we'll use localStorage
-loadFromLocalStorage();
-
-// Check if shift has been started today
-checkShiftStatus();
-} catch (error) {
-console.error('Error fetching data:', error);
-alert('Error connecting to the server. Please check your connection.');
-} finally {
-hideLoading();
-}
-}
-
-// Check if shift has been started today
-function checkShiftStatus() {
-const todayStr = formatDateForSheet(today);
-const shiftKey = `shiftStarted_${todayStr}_${currentSupervisor}`;
-const shiftStatus = localStorage.getItem(shiftKey);
-
-if (shiftStatus === 'true') {
-shiftStarted = true;
-enableEndShiftMode();
-} else {
-shiftStarted = false;
-disableEndShiftMode();
-}
-}
-
-// Enable End Shift mode
-function enableEndShiftMode() {
-const endShiftButton = document.getElementById('endShiftMode');
-endShiftButton.classList.remove('opacity-50', 'cursor-not-allowed');
-endShiftButton.disabled = false;
-}
-
-// Disable End Shift mode
-function disableEndShiftMode() {
-const endShiftButton = document.getElementById('endShiftMode');
-endShiftButton.classList.add('opacity-50', 'cursor-not-allowed');
-endShiftButton.disabled = true;
-}
-
-// Load data from localStorage
-function loadFromLocalStorage() {
-try {
-const savedAttendanceData = localStorage.getItem('attendanceData');
-if (savedAttendanceData) {
-attendanceData = JSON.parse(savedAttendanceData);
-}
-
-const savedWorkers = localStorage.getItem('workers');
-if (savedWorkers) {
-workers = JSON.parse(savedWorkers);
-}
-
-const savedMeasurementData = localStorage.getItem('measurementData');
-if (savedMeasurementData) {
-measurementData = JSON.parse(savedMeasurementData);
-}
-
-const savedProductivityData = localStorage.getItem('productivityData');
-if (savedProductivityData) {
-productivityData = JSON.parse(savedProductivityData);
-}
-
-updateWorkerList();
-updateSummaryTable();
-updateMeasurementTable();
-updateProductivityTable();
-} catch (e) {
-console.error('Error loading data from localStorage:', e);
-}
-}
-
-// Save data to localStorage
-function saveToLocalStorage() {
-try {
-localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
-localStorage.setItem('workers', JSON.stringify(workers));
-localStorage.setItem('measurementData', JSON.stringify(measurementData));
-localStorage.setItem('productivityData', JSON.stringify(productivityData));
-} catch (e) {
-console.error('Error saving data to localStorage:', e);
-}
-}
-
-// Save data to Google Sheets (simulated)
-async function saveDataToSheet(data, type) {
-showLoading();
-try {
-// In a real implementation, this would save to Google Sheets
-// For demo purposes, we'll use localStorage
-if (type === 'attendance') {
-if (!attendanceData[data.name]) {
-attendanceData[data.name] = {
-supervisor: data.supervisor,
-dates: {}
-};
-}
-attendanceData[data.name].dates[formatDate(new Date(data.date))] = data.hours;
-} else if (type === 'measurement') {
-measurementData.push(data);
-} else if (type === 'productivity') {
-productivityData.push(data);
-}
-
-saveToLocalStorage();
-return true;
-} catch (error) {
-console.error('Error saving data:', error);
-return false;
-} finally {
-hideLoading();
-}
-}
-
-// Calculate productivity metrics
-function calculateProductivity() {
-// Get workers for current supervisor and today
-const todayStr = formatDateForSheet(today);
-const todayWorkers = workers[currentSupervisor]?.[todayStr] || [];
-
-// Calculate total manhours
-let totalManhours = 0;
-for (const input of document.querySelectorAll('.overtime-input')) {
-const name = input.getAttribute('data-name');
-const overtimeHours = parseInt(input.value) || 0;
-totalManhours += 9 + overtimeHours;
-}
-
-// Calculate total volume and separate erection/dismantling volumes
-let totalVolume = 0;
-let erectionVolume = 0;
-let dismantlingVolume = 0;
-
-const measurementCards = document.querySelectorAll('.measurement-card');
-for (const card of measurementCards) {
-const workType = card.querySelector('.work-type').value;
-const length = parseFloat(card.querySelector('.length').value) || 0;
-const width = parseFloat(card.querySelector('.width').value) || 0;
-const height = parseFloat(card.querySelector('.height').value) || 0;
-const quantity = parseInt(card.querySelector('.quantity').value) || 1;
-
-let cubicMeters = length * width * height * quantity;
-if (workType === 'DISMANTLING') {
-cubicMeters = cubicMeters / 2;
-dismantlingVolume += cubicMeters;
-} else {
-erectionVolume += cubicMeters;
-}
-
-totalVolume += cubicMeters;
-}
-
-// Calculate productivity (volume per manhour)
-const productivity = totalManhours > 0 ? totalVolume / totalManhours : 0;
-
-// Update the UI
-document.getElementById('totalVolume').textContent = totalVolume.toFixed(2);
-document.getElementById('totalManhours').textContent = totalManhours;
-document.getElementById('erectionVolume').textContent = erectionVolume.toFixed(2);
-document.getElementById('dismantlingVolume').textContent = dismantlingVolume.toFixed(2);
-document.getElementById('productivity').textContent = productivity.toFixed(2);
-
-return {
-totalVolume,
-totalManhours,
-erectionVolume,
-dismantlingVolume,
-productivity
-};
-}
-
-// Generate and show summary report
-function showSummaryReport(productivityMetrics) {
-// Populate report data
-document.getElementById('reportDate').textContent = formatDateFull(today);
-document.getElementById('reportSupervisor').textContent = currentSupervisor;
-document.getElementById('reportTotalVolume').textContent = productivityMetrics.totalVolume.toFixed(2);
-document.getElementById('reportTotalManhours').textContent = productivityMetrics.totalManhours;
-document.getElementById('reportErectionVolume').textContent = productivityMetrics.erectionVolume.toFixed(2);
-document.getElementById('reportDismantlingVolume').textContent = productivityMetrics.dismantlingVolume.toFixed(2);
-document.getElementById('reportProductivity').textContent = productivityMetrics.productivity.toFixed(2);
-
-// Populate manpower table
-const manpowerTable = document.getElementById('reportManpowerTable');
-manpowerTable.innerHTML = '';
-
-const todayStr = formatDateForSheet(today);
-const todayWorkers = workers[currentSupervisor]?.[todayStr] || [];
-
-for (const worker of todayWorkers) {
-const overtimeInput = document.querySelector(`.overtime-input[data-name="${worker}"]`);
-const overtimeHours = overtimeInput ? (parseInt(overtimeInput.value) || 0) : 0;
-const totalHours = 9 + overtimeHours;
-
-const row = document.createElement('tr');
-row.innerHTML = `
-<td class="border px-3 py-2">${worker}</td>
-<td class="border px-3 py-2 text-center">${totalHours}</td>
-`;
-manpowerTable.appendChild(row);
-}
-
-// Populate measurement table
-const measurementTable = document.getElementById('reportMeasurementTable');
-measurementTable.innerHTML = '';
-
-const measurementCards = document.querySelectorAll('.measurement-card');
-for (const card of measurementCards) {
-const workType = card.querySelector('.work-type').value;
-const length = parseFloat(card.querySelector('.length').value) || 0;
-const width = parseFloat(card.querySelector('.width').value) || 0;
-const height = parseFloat(card.querySelector('.height').value) || 0;
-const quantity = parseInt(card.querySelector('.quantity').value) || 1;
-
-let cubicMeters = length * width * height * quantity;
-if (workType === 'DISMANTLING') {
-cubicMeters = cubicMeters / 2;
-}
-
-const dimensions = `${length}m × ${width}m × ${height}m`;
-
-const row = document.createElement('tr');
-row.innerHTML = `
-<td class="border px-3 py-2">${workType}</td>
-<td class="border px-3 py-2 text-center">${dimensions}</td>
-<td class="border px-3 py-2 text-center">${quantity}</td>
-<td class="border px-3 py-2 text-center">${cubicMeters.toFixed(2)}</td>
-`;
-measurementTable.appendChild(row);
-}
-
-// Show the modal
-document.getElementById('summaryReportModal').classList.remove('hidden');
-}
-
-// Toggle between start shift and end shift modes
-document.getElementById('startShiftMode').addEventListener('click', function() {
-this.classList.remove('bg-gray-200', 'text-gray-700');
-this.classList.add('bg-green-500', 'text-white');
-document.getElementById('endShiftMode').classList.remove('bg-green-500', 'text-white');
-document.getElementById('endShiftMode').classList.add('bg-gray-200', 'text-gray-700');
-document.getElementById('startShiftEntry').classList.remove('hidden');
-document.getElementById('endShiftEntry').classList.add('hidden');
-});
-
-document.getElementById('endShiftMode').addEventListener('click', function() {
-if (!isLoggedIn) {
-alert('Please log in first.');
-return;
-}
-
-if (!shiftStarted) {
-alert('Please submit Start Shift data first.');
-return;
-}
-
-this.classList.remove('bg-gray-200', 'text-gray-700');
-this.classList.add('bg-green-500', 'text-white');
-document.getElementById('startShiftMode').classList.remove('bg-green-500', 'text-white');
-document.getElementById('startShiftMode').classList.add('bg-gray-200', 'text-gray-700');
-document.getElementById('startShiftEntry').classList.add('hidden');
-document.getElementById('endShiftEntry').classList.remove('hidden');
-
-// Populate overtime entry fields
-populateOvertimeFields();
-});
-
-// Toggle between daily entry and summary views
-document.getElementById('toggleView').addEventListener('click', function() {
-const dailyView = document.getElementById('dailyEntryView');
-const summaryView = document.getElementById('summaryView');
-
-if (dailyView.classList.contains('hidden')) {
-dailyView.classList.remove('hidden');
-summaryView.classList.add('hidden');
-this.textContent = 'View Summary';
-} else {
-dailyView.classList.add('hidden');
-summaryView.classList.remove('hidden');
-this.textContent = 'Daily Entry';
-updateSummaryTable();
-updateMeasurementTable();
-updateProductivityTable();
-}
-});
-
-// Logout button
-document.getElementById('logoutButton').addEventListener('click', function() {
-logout();
-});
-
-// Add worker to the list
-document.getElementById('addWorker').addEventListener('click', async function() {
-if (!isLoggedIn) {
-alert('Please log in first.');
-return;
-}
-
-const nameInput = document.getElementById('workerName');
-const name = nameInput.value.trim();
-
-if (name) {
-// Initialize workers object structure if needed
-if (!workers[currentSupervisor]) {
-workers[currentSupervisor] = {};
-}
-
-const todayStr = formatDateForSheet(today);
-if (!workers[currentSupervisor][todayStr]) {
-workers[currentSupervisor][todayStr] = [];
-}
-
-// Check if worker already exists for this supervisor and day
-if (!workers[currentSupervisor][todayStr].includes(name)) {
-workers[currentSupervisor][todayStr].push(name);
-nameInput.value = '';
-updateWorkerList();
-
-// Initialize attendance data for this worker (but don't save to sheet yet)
-if (!attendanceData[name]) {
-attendanceData[name] = {
-supervisor: currentSupervisor,
-dates: {}
-};
-}
-
-saveToLocalStorage();
-} else {
-alert('This worker has already been added for today.');
-}
-}
-});
-
-// Submit Start Shift
-document.getElementById('submitStartShift').addEventListener('click', async function() {
-if (!isLoggedIn) {
-alert('Please log in first.');
-return;
-}
-
-const todayStr = formatDateForSheet(today);
-const todayWorkers = workers[currentSupervisor]?.[todayStr] || [];
-
-if (todayWorkers.length === 0) {
-alert('Please add at least one worker before submitting.');
-return;
-}
-
-showLoading();
-
-// Save all workers with default 9 hours
-let allSaved = true;
-
-for (const worker of todayWorkers) {
-// Save to Google Sheets
-const success = await saveDataToSheet({
-name: worker,
-supervisor: currentSupervisor,
-date: today,
-hours: 9
-}, 'attendance');
-
-if (success) {
-// Update local data structure
-if (!attendanceData[worker]) {
-attendanceData[worker] = {
-supervisor: currentSupervisor,
-dates: {}
-};
-}
-attendanceData[worker].dates[formatDate(today)] = 9; // Default to 9 hours
-} else {
-allSaved = false;
-}
-}
-
-hideLoading();
-
-if (allSaved) {
-// Mark shift as started for today
-localStorage.setItem(`shiftStarted_${todayStr}_${currentSupervisor}`, 'true');
-shiftStarted = true;
-
-// Enable End Shift mode
-enableEndShiftMode();
-
-alert('Start Shift data submitted successfully!');
-} else {
-alert('There was an error submitting some data. Please try again.');
-}
-});
-
-// Update the worker list display
-function updateWorkerList() {
-const workerList = document.getElementById('workerList');
-workerList.innerHTML = '';
-
-if (!isLoggedIn) {
-workerList.innerHTML = '<div class="p-3 text-gray-500 text-center">Please log in first</div>';
-return;
-}
-
-const todayStr = formatDateForSheet(today);
-const todayWorkers = workers[currentSupervisor]?.[todayStr] || [];
-
-if (todayWorkers.length === 0) {
-workerList.innerHTML = '<div class="p-3 text-gray-500 text-center">No workers added yet</div>';
-return;
-}
-
-todayWorkers.forEach(worker => {
-const div = document.createElement('div');
-div.className = 'p-3 flex justify-between items-center';
-div.innerHTML = `
-<span>${worker}</span>
-<button class="text-red-500 text-sm remove-worker" data-name="${worker}">Remove</button>
-`;
-workerList.appendChild(div);
-});
-
-// Add event listeners to remove buttons
-document.querySelectorAll('.remove-worker').forEach(button => {
-button.addEventListener('click', function() {
-const name = this.getAttribute('data-name');
-const todayStr = formatDateForSheet(today);
-
-if (workers[currentSupervisor] && workers[currentSupervisor][todayStr]) {
-workers[currentSupervisor][todayStr] = workers[currentSupervisor][todayStr].filter(w => w !== name);
-updateWorkerList();
-saveToLocalStorage();
-}
-});
-});
-}
-
-// Populate overtime entry fields
-function populateOvertimeFields() {
-const overtimeList = document.getElementById('overtimeList');
-overtimeList.innerHTML = '';
-
-if (!isLoggedIn) {
-overtimeList.innerHTML = '<div class="p-3 text-gray-500 text-center">Please log in first</div>';
-return;
-}
-
-const todayStr = formatDateForSheet(today);
-const todayWorkers = workers[currentSupervisor]?.[todayStr] || [];
-
-if (todayWorkers.length === 0) {
-overtimeList.innerHTML = '<div class="p-3 text-gray-500 text-center">No workers for today</div>';
-return;
-}
-
-todayWorkers.forEach(worker => {
-const div = document.createElement('div');
-div.className = 'p-3 flex justify-between items-center';
-div.innerHTML = `
-<span class="flex-grow">${worker}</span>
-<div class="flex items-center">
-<span class="mr-2">Overtime hours:</span>
-<input type="number" min="0" max="12" class="overtime-input border border-gray-300 rounded-md w-16 px-2 py-1"
-data-name="${worker}" value="0">
-</div>
-`;
-overtimeList.appendChild(div);
-});
-
-// Add event listener to recalculate productivity when overtime changes
-document.querySelectorAll('.overtime-input').forEach(input => {
-input.addEventListener('input', calculateProductivity);
-});
-}
-
-// Add measurement entry
-document.getElementById('addMeasurement').addEventListener('click', function() {
-const measurementEntries = document.getElementById('measurementEntries');
-const id = 'measurement-' + (++measurementCounter);
-
-const measurementCard = document.createElement('div');
-measurementCard.className = 'measurement-card';
-measurementCard.id = id;
-measurementCard.innerHTML = `
-<div class="flex justify-between items-center mb-3">
-<h4 class="font-medium">Measurement #${measurementCounter}</h4>
-<button class="text-red-500 delete-measurement" data-id="${id}">
-<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-</svg>
-</button>
-</div>
-<div class="mb-3">
-<label class="block text-sm font-medium text-gray-700 mb-1">Work Type:</label>
-<select class="work-type w-full border border-gray-300 rounded-md px-3 py-2">
-<option value="ERECTION">ERECTION</option>
-<option value="DISMANTLING">DISMANTLING</option>
-</select>
-</div>
-<div class="grid grid-cols-2 gap-3 mb-3">
-<div>
-<label class="block text-sm font-medium text-gray-700 mb-1">Length (m):</label>
-<input type="number" class="length w-full border border-gray-300 rounded-md px-3 py-2" min="0" step="0.01">
-</div>
-<div>
-<label class="block text-sm font-medium text-gray-700 mb-1">Width (m):</label>
-<input type="number" class="width w-full border border-gray-300 rounded-md px-3 py-2" min="0" step="0.01">
-</div>
-</div>
-<div class="grid grid-cols-2 gap-3 mb-3">
-<div>
-<label class="block text-sm font-medium text-gray-700 mb-1">Height (m):</label>
-<input type="number" class="height w-full border border-gray-300 rounded-md px-3 py-2" min="0" step="0.01">
-</div>
-<div>
-<label class="block text-sm font-medium text-gray-700 mb-1">Quantity:</label>
-<input type="number" class="quantity w-full border border-gray-300 rounded-md px-3 py-2" min="1" value="1">
-</div>
-</div>
-<div class="bg-blue-50 p-3 rounded-md">
-<div class="flex justify-between items-center">
-<span class="font-medium">Cubic Meters:</span>
-<span class="cubic-meters font-bold">0.00</span>
-</div>
-</div>
-`;
-
-measurementEntries.appendChild(measurementCard);
-
-// Add event listeners for calculation
-const card = document.getElementById(id);
-const inputs = card.querySelectorAll('input');
-const workType = card.querySelector('.work-type');
-
-const calculateCubicMeters = () => {
-const length = parseFloat(card.querySelector('.length').value) || 0;
-const width = parseFloat(card.querySelector('.width').value) || 0;
-const height = parseFloat(card.querySelector('.height').value) || 0;
-const quantity = parseInt(card.querySelector('.quantity').value) || 1;
-const type = card.querySelector('.work-type').value;
-
-let cubicMeters = length * width * height * quantity;
-
-if (type === 'DISMANTLING') {
-cubicMeters = cubicMeters / 2;
-}
-
-card.querySelector('.cubic-meters').textContent = cubicMeters.toFixed(2);
-
-// Recalculate overall productivity
-calculateProductivity();
-};
-
-inputs.forEach(input => {
-input.addEventListener('input', calculateCubicMeters);
-});
-
-workType.addEventListener('change', calculateCubicMeters);
-
-// Add delete event listener
-card.querySelector('.delete-measurement').addEventListener('click', function() {
-const id = this.getAttribute('data-id');
-document.getElementById(id).remove();
-calculateProductivity();
-});
-});
-
-// Save the day's data
-document.getElementById('saveDay').addEventListener('click', async function() {
-if (!isLoggedIn) {
-alert('Please log in first.');
-return;
-}
-
-showLoading();
-
-// Save overtime data
-const todayStr = formatDateForSheet(today);
-const todayWorkers = workers[currentSupervisor]?.[todayStr] || [];
-let allSaved = true;
-
-// 1. Save overtime hours
-for (const input of document.querySelectorAll('.overtime-input')) {
-const name = input.getAttribute('data-name');
-const overtimeHours = parseInt(input.value) || 0;
-const totalHours = 9 + overtimeHours;
-
-// Save to Google Sheets
-const success = await saveDataToSheet({
-name: name,
-supervisor: currentSupervisor,
-date: today,
-hours: totalHours
-}, 'attendance');
-
-if (success) {
-// Update local data structure
-if (!attendanceData[name]) {
-attendanceData[name] = {
-supervisor: currentSupervisor,
-dates: {}
-};
-}
-attendanceData[name].dates[formatDate(today)] = totalHours;
-} else {
-allSaved = false;
-}
-}
-
-// 2. Save measurement data
-const measurementCards = document.querySelectorAll('.measurement-card');
-const todayMeasurements = [];
-
-for (const card of measurementCards) {
-const workType = card.querySelector('.work-type').value;
-const length = parseFloat(card.querySelector('.length').value) || 0;
-const width = parseFloat(card.querySelector('.width').value) || 0;
-const height = parseFloat(card.querySelector('.height').value) || 0;
-const quantity = parseInt(card.querySelector('.quantity').value) || 1;
-
-let cubicMeters = length * width * height * quantity;
-if (workType === 'DISMANTLING') {
-cubicMeters = cubicMeters / 2;
-}
-
-const measurement = {
-date: formatDateForSheet(today),
-supervisor: currentSupervisor,
-workType: workType,
-length: length,
-width: width,
-height: height,
-quantity: quantity,
-cubicMeters: cubicMeters
-};
-
-todayMeasurements.push(measurement);
-
-// Save to Google Sheets
-const success = await saveDataToSheet(measurement, 'measurement');
-
-if (!success) {
-allSaved = false;
-}
-}
-
-// 3. Calculate and save productivity data
-const productivityMetrics = calculateProductivity();
-
-const productivityEntry = {
-date: formatDateForSheet(today),
-supervisor: currentSupervisor,
-totalVolume: productivityMetrics.totalVolume,
-erectionVolume: productivityMetrics.erectionVolume,
-dismantlingVolume: productivityMetrics.dismantlingVolume,
-totalManhours: productivityMetrics.totalManhours,
-productivity: productivityMetrics.productivity,
-measurements: todayMeasurements,
-workers: todayWorkers
-};
-
-const success = await saveDataToSheet(productivityEntry, 'productivity');
-
-if (!success) {
-allSaved = false;
-}
-
-hideLoading();
-
-if (allSaved) {
-// Show summary report
-showSummaryReport(productivityMetrics);
-
-updateSummaryTable();
-updateMeasurementTable();
-updateProductivityTable();
-} else {
-alert('There was an error saving some data. Please try again.');
-}
-});
-
-// Filter summary table by supervisor
-document.getElementById('summaryFilterSupervisor').addEventListener('change', function() {
-updateSummaryTable();
-updateMeasurementTable();
-updateProductivityTable();
-});
-
-// Update the summary table
-function updateSummaryTable() {
-const tableBody = document.getElementById('summaryTableBody');
-tableBody.innerHTML = '';
-
-const date1Str = formatDate(date1);
-const date2Str = formatDate(date2);
-const date3Str = formatDate(date3);
-
-// Get selected supervisor filter
-const selectedSupervisor = document.getElementById('summaryFilterSupervisor').value;
-
-// Add data to the table
-const allWorkers = Object.keys(attendanceData);
-
-if (allWorkers.length === 0) {
-const row = document.createElement('tr');
-row.innerHTML = `
-<td colspan="5" class="border px-4 py-2 text-center text-gray-500">No data available</td>
-`;
-tableBody.appendChild(row);
-return;
-}
-
-allWorkers.forEach(name => {
-// Skip if filtered by supervisor
-if (selectedSupervisor !== 'all' &&
-attendanceData[name] &&
-attendanceData[name].supervisor !== selectedSupervisor) {
-return;
-}
-
-const row = document.createElement('tr');
-const supervisor = attendanceData[name]?.supervisor || '-';
-
-row.innerHTML = `
-<td class="border px-4 py-2 font-medium">${name}</td>
-<td class="border px-4 py-2">${supervisor}</td>
-<td class="border px-4 py-2 text-center">${attendanceData[name]?.dates?.[date1Str] || '-'}</td>
-<td class="border px-4 py-2 text-center">${attendanceData[name]?.dates?.[date2Str] || '-'}</td>
-<td class="border px-4 py-2 text-center">${attendanceData[name]?.dates?.[date3Str] || '-'}</td>
-`;
-tableBody.appendChild(row);
-});
-}
-
-// Update the measurement table
-function updateMeasurementTable() {
-const tableBody = document.getElementById('measurementTableBody');
-tableBody.innerHTML = '';
-
-// Get selected supervisor filter
-const selectedSupervisor = document.getElementById('summaryFilterSupervisor').value;
-
-// Filter measurements by supervisor
-const filteredMeasurements = measurementData.filter(m =>
-selectedSupervisor === 'all' || m.supervisor === selectedSupervisor
-);
-
-if (filteredMeasurements.length === 0) {
-const row = document.createElement('tr');
-row.innerHTML = `
-<td colspan="6" class="border px-4 py-2 text-center text-gray-500">No measurement data available</td>
-`;
-tableBody.appendChild(row);
-return;
-}
-
-filteredMeasurements.forEach(measurement => {
-const row = document.createElement('tr');
-
-// Format date for display
-const measurementDate = new Date(measurement.date);
-const displayDate = measurementDate.toLocaleDateString('en-US', {
-day: 'numeric',
-month: 'short'
-});
-
-// Format dimensions
-const dimensions = `${measurement.length}m × ${measurement.width}m × ${measurement.height}m`;
-
-row.innerHTML = `
-<td class="border px-4 py-2">${displayDate}</td>
-<td class="border px-4 py-2">${measurement.supervisor}</td>
-<td class="border px-4 py-2">${measurement.workType}</td>
-<td class="border px-4 py-2 text-center">${dimensions}</td>
-<td class="border px-4 py-2 text-center">${measurement.quantity}</td>
-<td class="border px-4 py-2 text-center font-medium">${measurement.cubicMeters.toFixed(2)}</td>
-`;
-tableBody.appendChild(row);
-});
-}
-
-// Update the productivity table
-function updateProductivityTable() {
-const tableBody = document.getElementById('productivityTableBody');
-tableBody.innerHTML = '';
-
-// Get selected supervisor filter
-const selectedSupervisor = document.getElementById('summaryFilterSupervisor').value;
-
-// Filter productivity data by supervisor
-const filteredData = productivityData.filter(p =>
-selectedSupervisor === 'all' || p.supervisor === selectedSupervisor
-);
-
-if (filteredData.length === 0) {
-const row = document.createElement('tr');
-row.innerHTML = `
-<td colspan="8" class="border px-4 py-2 text-center text-gray-500">No productivity data available</td>
-`;
-tableBody.appendChild(row);
-return;
-}
-
-filteredData.forEach((data, index) => {
-const row = document.createElement('tr');
-
-// Format date for display
-const entryDate = new Date(data.date);
-const displayDate = entryDate.toLocaleDateString('en-US', {
-day: 'numeric',
-month: 'short'
-});
-
-row.innerHTML = `
-<td class="border px-4 py-2">${displayDate}</td>
-<td class="border px-4 py-2">${data.supervisor}</td>
-<td class="border px-4 py-2 text-center font-medium">${data.totalVolume.toFixed(2)}</td>
-<td class="border px-4 py-2 text-center">${data.erectionVolume.toFixed(2)}</td>
-<td class="border px-4 py-2 text-center">${data.dismantlingVolume.toFixed(2)}</td>
-<td class="border px-4 py-2 text-center">${data.totalManhours}</td>
-<td class="border px-4 py-2 text-center font-bold text-blue-600">${data.productivity.toFixed(2)}</td>
-<td class="border px-4 py-2 text-center">
-<button class="view-report bg-blue-500 text-white px-2 py-1 rounded text-xs" data-index="${index}">
-View Report
-</button>
-</td>
-`;
-tableBody.appendChild(row);
-});
-
-// Add event listeners to view report buttons
-document.querySelectorAll('.view-report').forEach(button => {
-button.addEventListener('click', function() {
-const index = parseInt(this.getAttribute('data-index'));
-const data = filteredData[index];
-
-// Show report for this productivity entry
-showSavedReport(data);
-});
-});
-}
-
-// Show saved report
-function showSavedReport(data) {
-// Populate report data
-document.getElementById('reportDate').textContent = new Date(data.date).toLocaleDateString('en-US', {
-day: 'numeric',
-month: 'short',
-year: 'numeric'
-});
-document.getElementById('reportSupervisor').textContent = data.supervisor;
-document.getElementById('reportTotalVolume').textContent = data.totalVolume.toFixed(2);
-document.getElementById('reportTotalManhours').textContent = data.totalManhours;
-document.getElementById('reportErectionVolume').textContent = data.erectionVolume.toFixed(2);
-document.getElementById('reportDismantlingVolume').textContent = data.dismantlingVolume.toFixed(2);
-document.getElementById('reportProductivity').textContent = data.productivity.toFixed(2);
-
-// Populate manpower table
-const manpowerTable = document.getElementById('reportManpowerTable');
-manpowerTable.innerHTML = '';
-
-if (data.workers && data.workers.length > 0) {
-// Calculate hours per worker (assuming equal distribution if not stored)
-const avgHours = data.totalManhours / data.workers.length;
-
-data.workers.forEach(worker => {
-const row = document.createElement('tr');
-row.innerHTML = `
-<td class="border px-3 py-2">${worker}</td>
-<td class="border px-3 py-2 text-center">${Math.round(avgHours)}</td>
-`;
-manpowerTable.appendChild(row);
-});
-} else {
-manpowerTable.innerHTML = `
-<tr>
-<td colspan="2" class="border px-3 py-2 text-center">
-Total manhours: ${data.totalManhours}
-</td>
-</tr>
-`;
-}
-
-// Populate measurement table
-const measurementTable = document.getElementById('reportMeasurementTable');
-measurementTable.innerHTML = '';
-
-if (data.measurements && data.measurements.length > 0) {
-data.measurements.forEach(measurement => {
-const dimensions = `${measurement.length}m × ${measurement.width}m × ${measurement.height}m`;
-
-const row = document.createElement('tr');
-row.innerHTML = `
-<td class="border px-3 py-2">${measurement.workType}</td>
-<td class="border px-3 py-2 text-center">${dimensions}</td>
-<td class="border px-3 py-2 text-center">${measurement.quantity}</td>
-<td class="border px-3 py-2 text-center">${measurement.cubicMeters.toFixed(2)}</td>
-`;
-measurementTable.appendChild(row);
-});
-} else {
-measurementTable.innerHTML = `
-<tr>
-<td colspan="4" class="border px-3 py-2 text-center">
-Erection: ${data.erectionVolume.toFixed(2)} m³, Dismantling: ${data.dismantlingVolume.toFixed(2)} m³
-</td>
-</tr>
-`;
-}
-
-// Show the modal
-document.getElementById('summaryReportModal').classList.remove('hidden');
-}
-
-// Close report modal
-document.getElementById('closeReportModal').addEventListener('click', function() {
-document.getElementById('summaryReportModal').classList.add('hidden');
-});
-
-// Print report
-document.getElementById('printReport').addEventListener('click', function() {
-window.print();
-});
-
-// Share report (simulated)
-document.getElementById('shareReport').addEventListener('click', function() {
-alert('In a real implementation, this would generate a shareable link or allow you to email the report.');
-});
-
-// Check if user was previously logged in
-const savedSupervisor = localStorage.getItem('currentSupervisor');
-if (savedSupervisor) {
-// Auto-login for demo purposes
-// In a real app, you'd still require PIN entry
-document.getElementById('loginSupervisor').value = savedSupervisor;
-login(savedSupervisor);
-}
-</script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9658c6e8a66789f0',t:'MTc1MzU4NDA3OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<body class="min-h-screen">
+    <div id="app" class="max-w-4xl mx-auto px-4 py-6">
+        <!-- Login Screen -->
+        <div id="login-screen" class="fade-in">
+            <div class="flex justify-center mb-8">
+                <h1 class="text-3xl font-bold logo-text">DPR System</h1>
+            </div>
+            <div class="card bg-white rounded-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Supervisor Login</h2>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <select id="username" class="input-field w-full p-2 rounded-md">
+                        <option value="" disabled selected>Select your name</option>
+                        <option value="MAHENDRA KUMAR">MAHENDRA KUMAR</option>
+                        <option value="PINTU SAH">PINTU SAH</option>
+                        <option value="HARKIRAT SINGH">HARKIRAT SINGH</option>
+                        <option value="SUNIL CHAUHAN">SUNIL CHAUHAN</option>
+                        <option value="NSUP1">NSUP1</option>
+                        <option value="NSUP2">NSUP2</option>
+                        <option value="NSUP3">NSUP3</option>
+                        <option value="NSUP4">NSUP4</option>
+                    </select>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="password" class="input-field w-full p-2 rounded-md" placeholder="First 4 letters + last 2 digits of mobile">
+                </div>
+                <div class="flex justify-between items-center">
+                    <button id="login-btn" class="btn-primary text-white px-4 py-2 rounded-md">Login</button>
+                    <button id="register-toggle" class="text-sm text-blue-600 hover:underline">New user? Register</button>
+                </div>
+            </div>
+            <div id="login-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+                Invalid username or password. Please try again.
+            </div>
+        </div>
+
+        <!-- Registration Screen -->
+        <div id="register-screen" class="hidden fade-in">
+            <div class="flex justify-center mb-8">
+                <h1 class="text-3xl font-bold logo-text">DPR System</h1>
+            </div>
+            <div class="card bg-white rounded-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Supervisor Registration</h2>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input type="text" id="reg-name" class="input-field w-full p-2 rounded-md" placeholder="Enter your full name">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                    <input type="text" id="reg-mobile" class="input-field w-full p-2 rounded-md" placeholder="Enter your mobile number">
+                </div>
+                <div class="flex justify-between items-center">
+                    <button id="register-btn" class="btn-primary text-white px-4 py-2 rounded-md">Register</button>
+                    <button id="login-toggle" class="text-sm text-blue-600 hover:underline">Already registered? Login</button>
+                </div>
+            </div>
+            <div id="register-info" class="hidden bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative mb-4">
+                Registration successful! Your password is <span id="generated-password" class="font-bold"></span>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="hidden fade-in">
+            <div class="flex justify-between items-center mb-8">
+                <h1 class="text-2xl font-bold logo-text">DPR System</h1>
+                <div class="flex items-center">
+                    <span id="user-display" class="mr-4 text-gray-700"></span>
+                    <button id="logout-btn" class="btn-secondary text-white px-3 py-1 text-sm rounded-md">Logout</button>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="mb-6">
+                <div class="flex border-b border-gray-200">
+                    <button id="tab-attendance" class="tab-btn py-2 px-4 border-b-2 border-blue-500 text-blue-600 font-medium">Attendance</button>
+                    <button id="tab-dpr" class="tab-btn py-2 px-4 border-b-2 border-transparent text-gray-500 font-medium">DPR</button>
+                    <button id="tab-summary" class="tab-btn py-2 px-4 border-b-2 border-transparent text-gray-500 font-medium">Summary</button>
+                </div>
+            </div>
+
+            <!-- Attendance Tab -->
+            <div id="attendance-content" class="tab-content fade-in">
+                <div class="card bg-white rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Start of Shift - Attendance</h2>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
+                        <input type="text" id="attendance-supervisor" class="input-field w-full p-2 rounded-md bg-gray-100" readonly>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                        <input type="date" id="attendance-date" class="input-field w-full p-2 rounded-md">
+                    </div>
+                    <div class="mb-4" id="manpower-input-container">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Add Manpower</label>
+                        <div class="flex">
+                            <input type="text" id="manpower-name" class="input-field w-full p-2 rounded-l-md" placeholder="Enter worker name">
+                            <button id="add-manpower-btn" class="btn-primary text-white px-4 py-2 rounded-r-md">Add</button>
+                        </div>
+                    </div>
+                    <div id="manpower-list" class="mb-6">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">Manpower List:</h3>
+                        <ul id="manpower-items" class="bg-gray-50 rounded-md p-2 min-h-[100px] border border-gray-200">
+                            <!-- Manpower items will be added here -->
+                        </ul>
+                    </div>
+                    <button id="submit-attendance-btn" class="btn-primary text-white px-4 py-2 rounded-md w-full">Submit Attendance</button>
+                </div>
+            </div>
+
+            <!-- DPR Tab -->
+            <div id="dpr-content" class="tab-content hidden fade-in">
+                <div class="card bg-white rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">End of Shift - Daily Progress Report</h2>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
+                        <input type="text" id="dpr-supervisor" class="input-field w-full p-2 rounded-md bg-gray-100" readonly>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                        <input type="date" id="dpr-date" class="input-field w-full p-2 rounded-md bg-gray-100" readonly>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Activity Type</label>
+                        <select id="activity-type" class="input-field w-full p-2 rounded-md">
+                            <option value="erection">Erection</option>
+                            <option value="dismantling">Dismantling</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Length (m)</label>
+                            <input type="number" id="length" class="input-field w-full p-2 rounded-md" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Width (m)</label>
+                            <input type="number" id="width" class="input-field w-full p-2 rounded-md" step="0.01">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Height (m)</label>
+                            <input type="number" id="height" class="input-field w-full p-2 rounded-md" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input type="number" id="quantity" class="input-field w-full p-2 rounded-md" value="1">
+                        </div>
+                    </div>
+                    <div class="mb-6">
+                        <button id="add-work-btn" class="btn-primary text-white px-4 py-2 rounded-md w-full">Add Work Entry</button>
+                    </div>
+                    <div id="work-entries" class="mb-6">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">Work Entries:</h3>
+                        <div class="bg-gray-50 rounded-md p-2 min-h-[100px] border border-gray-200">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-gray-300">
+                                        <th class="py-2 text-left">Type</th>
+                                        <th class="py-2 text-left">Dimensions</th>
+                                        <th class="py-2 text-right">Volume</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="work-items">
+                                    <!-- Work items will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <button id="proceed-to-summary-btn" class="btn-primary text-white px-4 py-2 rounded-md w-full">Proceed to Summary</button>
+                </div>
+            </div>
+
+            <!-- Summary Tab -->
+            <div id="summary-content" class="tab-content hidden fade-in">
+                <div class="card bg-white rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Daily Progress Summary</h2>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supervisor</label>
+                        <input type="text" id="summary-supervisor" class="input-field w-full p-2 rounded-md bg-gray-100" readonly>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                        <input type="date" id="summary-date" class="input-field w-full p-2 rounded-md bg-gray-100" readonly>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="text-md font-medium text-gray-800 mb-2">Manpower Attendance</h3>
+                        <div class="bg-gray-50 rounded-md p-3 border border-gray-200">
+                            <div id="manpower-summary" class="mb-3">
+                                <!-- Manpower summary will be added here -->
+                            </div>
+                            <div class="text-sm text-gray-700">
+                                <span class="font-medium">Total Manpower:</span> <span id="total-manpower">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="text-md font-medium text-gray-800 mb-2">Overtime Hours</h3>
+                        <div id="overtime-inputs" class="bg-gray-50 rounded-md p-3 border border-gray-200">
+                            <!-- Overtime inputs will be added here -->
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="text-md font-medium text-gray-800 mb-2">Work Summary</h3>
+                        <div class="bg-gray-50 rounded-md p-3 border border-gray-200">
+                            <div class="grid grid-cols-2 gap-2 mb-2">
+                                <div class="text-sm text-gray-700">
+                                    <span class="font-medium">Total Erection Volume:</span>
+                                    <span id="total-erection">0</span> m³
+                                </div>
+                                <div class="text-sm text-gray-700">
+                                    <span class="font-medium">Total Dismantling Volume:</span>
+                                    <span id="total-dismantling">0</span> m³
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="text-sm text-gray-700">
+                                    <span class="font-medium">Total Manhours:</span>
+                                    <span id="total-manhours">0</span> hrs
+                                </div>
+                                <div class="text-sm text-gray-700">
+                                    <span class="font-medium">Productivity:</span>
+                                    <span id="productivity">0</span> m³/hr
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6" id="productivity-feedback">
+                        <!-- Productivity feedback will be added here -->
+                    </div>
+                    
+                    <div class="flex flex-col space-y-3">
+                        <button id="submit-dpr-btn" class="btn-primary text-white px-4 py-2 rounded-md">Submit Final Report</button>
+                        <button id="share-whatsapp-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                            </svg>
+                            Share via WhatsApp
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="success-message" class="hidden bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4">
+                    Report submitted successfully! Data has been saved to Google Sheets.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // App state
+            const state = {
+                currentUser: null,
+                users: [
+                    { name: 'MAHENDRA KUMAR', password: 'MAHE90' },
+                    { name: 'PINTU SAH', password: 'PINT90' },
+                    { name: 'HARKIRAT SINGH', password: 'HARK90' },
+                    { name: 'SUNIL CHAUHAN', password: 'SUNI90' },
+                    { name: 'NSUP1', password: 'NSUP90' },
+                    { name: 'NSUP2', password: 'NSUP90' },
+                    { name: 'NSUP3', password: 'NSUP90' },
+                    { name: 'NSUP4', password: 'NSUP90' }
+                ],
+                attendance: {
+                    date: new Date().toISOString().split('T')[0],
+                    manpower: []
+                },
+                dpr: {
+                    workEntries: [],
+                    totalErection: 0,
+                    totalDismantling: 0
+                },
+                overtime: {},
+                attendanceSubmitted: false,
+                dprSubmitted: false
+            };
+
+            // DOM Elements
+            const elements = {
+                // Screens
+                loginScreen: document.getElementById('login-screen'),
+                registerScreen: document.getElementById('register-screen'),
+                dashboard: document.getElementById('dashboard'),
+                
+                // Login
+                username: document.getElementById('username'),
+                password: document.getElementById('password'),
+                loginBtn: document.getElementById('login-btn'),
+                loginError: document.getElementById('login-error'),
+                registerToggle: document.getElementById('register-toggle'),
+                
+                // Register
+                regName: document.getElementById('reg-name'),
+                regMobile: document.getElementById('reg-mobile'),
+                registerBtn: document.getElementById('register-btn'),
+                loginToggle: document.getElementById('login-toggle'),
+                registerInfo: document.getElementById('register-info'),
+                generatedPassword: document.getElementById('generated-password'),
+                
+                // Dashboard
+                userDisplay: document.getElementById('user-display'),
+                logoutBtn: document.getElementById('logout-btn'),
+                
+                // Tabs
+                tabAttendance: document.getElementById('tab-attendance'),
+                tabDpr: document.getElementById('tab-dpr'),
+                tabSummary: document.getElementById('tab-summary'),
+                attendanceContent: document.getElementById('attendance-content'),
+                dprContent: document.getElementById('dpr-content'),
+                summaryContent: document.getElementById('summary-content'),
+                
+                // Attendance
+                attendanceSupervisor: document.getElementById('attendance-supervisor'),
+                attendanceDate: document.getElementById('attendance-date'),
+                manpowerName: document.getElementById('manpower-name'),
+                addManpowerBtn: document.getElementById('add-manpower-btn'),
+                manpowerItems: document.getElementById('manpower-items'),
+                submitAttendanceBtn: document.getElementById('submit-attendance-btn'),
+                
+                // DPR
+                dprSupervisor: document.getElementById('dpr-supervisor'),
+                dprDate: document.getElementById('dpr-date'),
+                activityType: document.getElementById('activity-type'),
+                length: document.getElementById('length'),
+                width: document.getElementById('width'),
+                height: document.getElementById('height'),
+                quantity: document.getElementById('quantity'),
+                addWorkBtn: document.getElementById('add-work-btn'),
+                workItems: document.getElementById('work-items'),
+                proceedToSummaryBtn: document.getElementById('proceed-to-summary-btn'),
+                
+                // Summary
+                summarySupervisor: document.getElementById('summary-supervisor'),
+                summaryDate: document.getElementById('summary-date'),
+                manpowerSummary: document.getElementById('manpower-summary'),
+                totalManpower: document.getElementById('total-manpower'),
+                overtimeInputs: document.getElementById('overtime-inputs'),
+                totalErection: document.getElementById('total-erection'),
+                totalDismantling: document.getElementById('total-dismantling'),
+                totalManhours: document.getElementById('total-manhours'),
+                productivity: document.getElementById('productivity'),
+                productivityFeedback: document.getElementById('productivity-feedback'),
+                submitDprBtn: document.getElementById('submit-dpr-btn'),
+                shareWhatsappBtn: document.getElementById('share-whatsapp-btn'),
+                successMessage: document.getElementById('success-message')
+            };
+
+            // Set current date as default
+            elements.attendanceDate.value = state.attendance.date;
+
+            // Event Listeners
+            // Login & Registration
+            elements.loginBtn.addEventListener('click', handleLogin);
+            elements.registerToggle.addEventListener('click', () => {
+                elements.loginScreen.classList.add('hidden');
+                elements.registerScreen.classList.remove('hidden');
+            });
+            elements.loginToggle.addEventListener('click', () => {
+                elements.registerScreen.classList.add('hidden');
+                elements.loginScreen.classList.remove('hidden');
+            });
+            elements.registerBtn.addEventListener('click', handleRegister);
+            elements.logoutBtn.addEventListener('click', handleLogout);
+
+            // Tab Navigation
+            elements.tabAttendance.addEventListener('click', () => switchTab('attendance'));
+            elements.tabDpr.addEventListener('click', () => switchTab('dpr'));
+            elements.tabSummary.addEventListener('click', () => switchTab('summary'));
+
+            // Attendance
+            elements.addManpowerBtn.addEventListener('click', addManpower);
+            elements.submitAttendanceBtn.addEventListener('click', submitAttendance);
+
+            // DPR
+            elements.addWorkBtn.addEventListener('click', addWorkEntry);
+            elements.proceedToSummaryBtn.addEventListener('click', proceedToSummary);
+
+            // Summary
+            elements.submitDprBtn.addEventListener('click', submitDpr);
+            elements.shareWhatsappBtn.addEventListener('click', shareViaWhatsapp);
+
+            // Functions
+            function handleLogin() {
+                const username = elements.username.value;
+                const password = elements.password.value;
+                
+                const user = state.users.find(u => u.name === username && u.password === password);
+                
+                if (user) {
+                    state.currentUser = user.name;
+                    elements.loginError.classList.add('hidden');
+                    elements.loginScreen.classList.add('hidden');
+                    elements.dashboard.classList.remove('hidden');
+                    elements.userDisplay.textContent = state.currentUser;
+                    
+                    // Set supervisor name in all tabs
+                    elements.attendanceSupervisor.value = state.currentUser;
+                    elements.dprSupervisor.value = state.currentUser;
+                    elements.summarySupervisor.value = state.currentUser;
+                    
+                    // Check if attendance was already submitted
+                    if (state.attendanceSubmitted) {
+                        switchTab('dpr');
+                    } else {
+                        switchTab('attendance');
+                    }
+                } else {
+                    elements.loginError.classList.remove('hidden');
+                }
+            }
+
+            function handleRegister() {
+                const name = elements.regName.value.trim();
+                const mobile = elements.regMobile.value.trim();
+                
+                if (name && mobile && mobile.length >= 2) {
+                    // Generate password (first 4 letters of name + last 2 digits of mobile)
+                    const namePrefix = name.substring(0, 4).toUpperCase();
+                    const mobilePostfix = mobile.slice(-2);
+                    const password = namePrefix + mobilePostfix;
+                    
+                    // Add new user
+                    state.users.push({ name, password });
+                    
+                    // Show success message
+                    elements.generatedPassword.textContent = password;
+                    elements.registerInfo.classList.remove('hidden');
+                    
+                    // Clear form
+                    elements.regName.value = '';
+                    elements.regMobile.value = '';
+                    
+                    // Auto switch to login after 3 seconds
+                    setTimeout(() => {
+                        elements.registerScreen.classList.add('hidden');
+                        elements.loginScreen.classList.remove('hidden');
+                        elements.registerInfo.classList.add('hidden');
+                    }, 3000);
+                }
+            }
+
+            function handleLogout() {
+                elements.dashboard.classList.add('hidden');
+                elements.loginScreen.classList.remove('hidden');
+                elements.username.value = '';
+                elements.password.value = '';
+                resetState();
+            }
+
+            function resetState() {
+                state.currentUser = null;
+                state.attendance = {
+                    date: new Date().toISOString().split('T')[0],
+                    manpower: []
+                };
+                state.dpr = {
+                    workEntries: [],
+                    totalErection: 0,
+                    totalDismantling: 0
+                };
+                state.overtime = {};
+                state.attendanceSubmitted = false;
+                state.dprSubmitted = false;
+                
+                // Reset UI elements
+                elements.manpowerItems.innerHTML = '';
+                elements.workItems.innerHTML = '';
+                elements.attendanceDate.value = state.attendance.date;
+                elements.manpowerName.value = '';
+                elements.length.value = '';
+                elements.width.value = '';
+                elements.height.value = '';
+                elements.quantity.value = '1';
+                elements.successMessage.classList.add('hidden');
+            }
+
+            function switchTab(tab) {
+                // Hide all tab contents
+                elements.attendanceContent.classList.add('hidden');
+                elements.dprContent.classList.add('hidden');
+                elements.summaryContent.classList.add('hidden');
+                
+                // Reset tab styles
+                elements.tabAttendance.classList.remove('border-blue-500', 'text-blue-600');
+                elements.tabAttendance.classList.add('border-transparent', 'text-gray-500');
+                elements.tabDpr.classList.remove('border-blue-500', 'text-blue-600');
+                elements.tabDpr.classList.add('border-transparent', 'text-gray-500');
+                elements.tabSummary.classList.remove('border-blue-500', 'text-blue-600');
+                elements.tabSummary.classList.add('border-transparent', 'text-gray-500');
+                
+                // Show selected tab
+                if (tab === 'attendance') {
+                    elements.attendanceContent.classList.remove('hidden');
+                    elements.tabAttendance.classList.remove('border-transparent', 'text-gray-500');
+                    elements.tabAttendance.classList.add('border-blue-500', 'text-blue-600');
+                } else if (tab === 'dpr') {
+                    if (!state.attendanceSubmitted) {
+                        alert('Please submit attendance first!');
+                        switchTab('attendance');
+                        return;
+                    }
+                    elements.dprContent.classList.remove('hidden');
+                    elements.tabDpr.classList.remove('border-transparent', 'text-gray-500');
+                    elements.tabDpr.classList.add('border-blue-500', 'text-blue-600');
+                } else if (tab === 'summary') {
+                    if (!state.attendanceSubmitted) {
+                        alert('Please submit attendance first!');
+                        switchTab('attendance');
+                        return;
+                    }
+                    if (state.dpr.workEntries.length === 0) {
+                        alert('Please add at least one work entry!');
+                        switchTab('dpr');
+                        return;
+                    }
+                    elements.summaryContent.classList.remove('hidden');
+                    elements.tabSummary.classList.remove('border-transparent', 'text-gray-500');
+                    elements.tabSummary.classList.add('border-blue-500', 'text-blue-600');
+                }
+            }
+
+            function addManpower() {
+                const name = elements.manpowerName.value.trim();
+                if (name) {
+                    state.attendance.manpower.push(name);
+                    
+                    const li = document.createElement('li');
+                    li.className = 'py-1 px-2 bg-white rounded mb-1 shadow-sm flex justify-between items-center';
+                    li.innerHTML = `
+                        <span>${name}</span>
+                        <button class="text-red-500 hover:text-red-700" data-index="${state.attendance.manpower.length - 1}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    `;
+                    
+                    // Add delete functionality
+                    li.querySelector('button').addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        state.attendance.manpower.splice(index, 1);
+                        elements.manpowerItems.removeChild(li);
+                        // Update indices for remaining items
+                        const buttons = elements.manpowerItems.querySelectorAll('button');
+                        buttons.forEach((btn, i) => {
+                            btn.setAttribute('data-index', i);
+                        });
+                    });
+                    
+                    elements.manpowerItems.appendChild(li);
+                    elements.manpowerName.value = '';
+                }
+            }
+
+            function submitAttendance() {
+                if (state.attendance.manpower.length === 0) {
+                    alert('Please add at least one manpower!');
+                    return;
+                }
+                
+                state.attendance.date = elements.attendanceDate.value;
+                state.attendanceSubmitted = true;
+                
+                // Update DPR date to match attendance date
+                elements.dprDate.value = state.attendance.date;
+                
+                // Switch to DPR tab
+                switchTab('dpr');
+                
+                // Disable attendance inputs
+                elements.attendanceDate.readOnly = true;
+                elements.attendanceDate.classList.add('bg-gray-100');
+                elements.manpowerName.disabled = true;
+                elements.addManpowerBtn.disabled = true;
+                elements.submitAttendanceBtn.disabled = true;
+                elements.submitAttendanceBtn.classList.add('opacity-50');
+            }
+
+            function addWorkEntry() {
+                const length = parseFloat(elements.length.value);
+                const width = parseFloat(elements.width.value);
+                const height = parseFloat(elements.height.value);
+                const quantity = parseInt(elements.quantity.value);
+                const activityType = elements.activityType.value;
+                
+                if (isNaN(length) || isNaN(width) || isNaN(height) || isNaN(quantity)) {
+                    alert('Please enter valid dimensions!');
+                    return;
+                }
+                
+                let volume = length * width * height * quantity;
+                if (activityType === 'dismantling') {
+                    volume = volume / 2;
+                }
+                
+                const entry = {
+                    type: activityType,
+                    length,
+                    width,
+                    height,
+                    quantity,
+                    volume
+                };
+                
+                state.dpr.workEntries.push(entry);
+                
+                // Update totals
+                if (activityType === 'erection') {
+                    state.dpr.totalErection += volume;
+                } else {
+                    state.dpr.totalDismantling += volume;
+                }
+                
+                // Add to UI
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-200';
+                tr.innerHTML = `
+                    <td class="py-2 capitalize">${activityType}</td>
+                    <td class="py-2">${length}m × ${width}m × ${height}m × ${quantity}</td>
+                    <td class="py-2 text-right">${volume.toFixed(2)} m³</td>
+                `;
+                elements.workItems.appendChild(tr);
+                
+                // Clear inputs
+                elements.length.value = '';
+                elements.width.value = '';
+                elements.height.value = '';
+                elements.quantity.value = '1';
+            }
+
+            function proceedToSummary() {
+                if (state.dpr.workEntries.length === 0) {
+                    alert('Please add at least one work entry!');
+                    return;
+                }
+                
+                // Update summary date
+                elements.summaryDate.value = state.attendance.date;
+                
+                // Generate manpower summary
+                elements.manpowerSummary.innerHTML = '';
+                state.attendance.manpower.forEach(name => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between items-center mb-2';
+                    div.innerHTML = `
+                        <span class="text-sm">${name}</span>
+                        <span class="text-sm">Present</span>
+                    `;
+                    elements.manpowerSummary.appendChild(div);
+                });
+                
+                // Update total manpower
+                elements.totalManpower.textContent = state.attendance.manpower.length;
+                
+                // Generate overtime inputs
+                elements.overtimeInputs.innerHTML = '';
+                state.attendance.manpower.forEach(name => {
+                    const div = document.createElement('div');
+                    div.className = 'flex justify-between items-center mb-2';
+                    div.innerHTML = `
+                        <span class="text-sm">${name}</span>
+                        <input type="number" class="input-field w-20 p-1 text-sm rounded-md" 
+                               min="0" max="12" step="0.5" value="0" data-name="${name}">
+                    `;
+                    elements.overtimeInputs.appendChild(div);
+                    
+                    // Add event listener to update overtime
+                    const input = div.querySelector('input');
+                    input.addEventListener('change', function() {
+                        const name = this.getAttribute('data-name');
+                        const hours = parseFloat(this.value) || 0;
+                        state.overtime[name] = hours;
+                        updateProductivity();
+                    });
+                });
+                
+                // Update work summary
+                elements.totalErection.textContent = state.dpr.totalErection.toFixed(2);
+                elements.totalDismantling.textContent = state.dpr.totalDismantling.toFixed(2);
+                
+                // Initialize overtime object
+                state.attendance.manpower.forEach(name => {
+                    state.overtime[name] = 0;
+                });
+                
+                // Calculate initial productivity
+                updateProductivity();
+                
+                // Switch to summary tab
+                switchTab('summary');
+            }
+
+            function updateProductivity() {
+                // Calculate total manhours
+                const regularHours = state.attendance.manpower.length * 8;
+                const overtimeHours = Object.values(state.overtime).reduce((sum, hours) => sum + hours, 0);
+                const totalManhours = regularHours + overtimeHours;
+                
+                // Calculate productivity
+                const totalVolume = state.dpr.totalErection + state.dpr.totalDismantling;
+                const productivity = totalManhours > 0 ? totalVolume / totalManhours : 0;
+                
+                // Update UI
+                elements.totalManhours.textContent = totalManhours.toFixed(1);
+                elements.productivity.textContent = productivity.toFixed(2);
+                
+                // Update productivity feedback
+                let feedbackClass, feedbackText;
+                if (productivity < 2.5) {
+                    feedbackClass = 'bg-yellow-100 border-yellow-400 text-yellow-700';
+                    feedbackText = 'Need Improvement';
+                } else {
+                    feedbackClass = 'bg-green-100 border-green-400 text-green-700';
+                    feedbackText = 'Excellent! Keep up the good work';
+                }
+                
+                elements.productivityFeedback.innerHTML = `
+                    <div class="${feedbackClass} px-4 py-3 rounded relative">
+                        <strong>Productivity Feedback:</strong> ${feedbackText}
+                    </div>
+                `;
+            }
+
+            function submitDpr() {
+                // Simulate saving to Google Sheets
+                state.dprSubmitted = true;
+                elements.successMessage.classList.remove('hidden');
+                
+                // Disable submit button
+                elements.submitDprBtn.disabled = true;
+                elements.submitDprBtn.classList.add('opacity-50');
+                
+                // Scroll to success message
+                elements.successMessage.scrollIntoView({ behavior: 'smooth' });
+                
+                // In a real app, this would send data to Google Sheets
+                console.log('Data to be saved:', {
+                    supervisor: state.currentUser,
+                    date: state.attendance.date,
+                    manpower: state.attendance.manpower,
+                    workEntries: state.dpr.workEntries,
+                    overtime: state.overtime,
+                    totalErection: state.dpr.totalErection,
+                    totalDismantling: state.dpr.totalDismantling,
+                    totalManhours: parseFloat(elements.totalManhours.textContent),
+                    productivity: parseFloat(elements.productivity.textContent)
+                });
+            }
+
+            function shareViaWhatsapp() {
+                // Generate report text
+                const date = new Date(state.attendance.date).toLocaleDateString();
+                const supervisor = state.currentUser;
+                const manpowerCount = state.attendance.manpower.length;
+                const erectionVolume = state.dpr.totalErection.toFixed(2);
+                const dismantlingVolume = state.dpr.totalDismantling.toFixed(2);
+                const totalVolume = (state.dpr.totalErection + state.dpr.totalDismantling).toFixed(2);
+                const manhours = elements.totalManhours.textContent;
+                const productivity = elements.productivity.textContent;
+                
+                const reportText = encodeURIComponent(
+                    `*Daily Progress Report - ${date}*\n\n` +
+                    `*Supervisor:* ${supervisor}\n` +
+                    `*Manpower:* ${manpowerCount}\n\n` +
+                    `*Work Summary:*\n` +
+                    `- Erection: ${erectionVolume} m³\n` +
+                    `- Dismantling: ${dismantlingVolume} m³\n` +
+                    `- Total Volume: ${totalVolume} m³\n\n` +
+                    `*Manhours:* ${manhours} hrs\n` +
+                    `*Productivity:* ${productivity} m³/hr\n\n` +
+                    `*Feedback:* ${productivity < 2.5 ? 'Need Improvement' : 'Excellent! Keep up the good work'}`
+                );
+                
+                // Open WhatsApp with pre-filled message
+                window.open(`https://wa.me/?text=${reportText}`, '_blank');
+            }
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9659779ba686d689',t:'MTc1MzU5MTMxNi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
